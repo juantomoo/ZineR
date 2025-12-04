@@ -39,7 +39,10 @@ window.ZineR.CONFIG = {
         'serif': "'Merriweather', 'Georgia', serif",
         'sans': "'Inter', 'Arial', sans-serif",
         'mono': "'Courier Prime', 'Courier New', monospace",
-        'hand': "'Caveat', 'Comic Sans MS', cursive"
+        'hand': "'Caveat', 'Comic Sans MS', cursive",
+        'ruda': "'Ruda', 'Arial', sans-serif",
+        'exo': "'Exo', 'Arial', sans-serif",
+        'audiowide': "'Audiowide', 'Impact', sans-serif"
     },
 
     // Opciones de ajuste de imagen
