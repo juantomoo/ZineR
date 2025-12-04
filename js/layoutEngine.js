@@ -108,30 +108,52 @@ window.ZineR.MotorMaquetacion.prototype.crearElementoCara = function (cara) {
     div.style.fontSize = '6px';
     div.style.color = '#000';
 
-    // Capa de Imagen de fondo (separada para filtros)
+    // Capa de Imagen de fondo (usando <img> para mejor compatibilidad con html2canvas)
     if (cara.imagen) {
-        const divImagen = document.createElement('div');
-        divImagen.style.position = 'absolute';
-        divImagen.style.top = '0';
-        divImagen.style.left = '0';
-        divImagen.style.width = '100%';
-        divImagen.style.height = '100%';
-        divImagen.style.zIndex = '0'; // Detrás del contenido
+        const contenedorImagen = document.createElement('div');
+        contenedorImagen.style.position = 'absolute';
+        contenedorImagen.style.top = '0';
+        contenedorImagen.style.left = '0';
+        contenedorImagen.style.width = '100%';
+        contenedorImagen.style.height = '100%';
+        contenedorImagen.style.zIndex = '0';
+        contenedorImagen.style.overflow = 'hidden';
 
-        divImagen.style.backgroundImage = `url(${cara.imagen.dataUrl})`;
+        // Usar elemento <img> real en lugar de background-image
+        // Esto mejora la compatibilidad con html2canvas para filtros
+        const imgElem = document.createElement('img');
+        imgElem.src = cara.imagen.dataUrl;
+        imgElem.style.position = 'absolute';
+        imgElem.style.top = '50%';
+        imgElem.style.left = '50%';
+        imgElem.style.transform = 'translate(-50%, -50%)';
+        imgElem.style.minWidth = '100%';
+        imgElem.style.minHeight = '100%';
+        imgElem.style.opacity = cara.imagen.opacidad !== undefined ? cara.imagen.opacidad : 1;
 
-        // Mapear valores de ajuste a propiedades CSS
-        const mapaAjuste = {
-            'cover': 'cover',
-            'contain': 'contain',
-            'fill': '100% 100%'
-        };
-        divImagen.style.backgroundSize = mapaAjuste[cara.imagen.ajuste] || 'cover';
-        divImagen.style.backgroundPosition = 'center';
-        divImagen.style.backgroundRepeat = 'no-repeat';
-        divImagen.style.opacity = cara.imagen.opacidad !== undefined ? cara.imagen.opacidad : 1;
+        // Mapear valores de ajuste
+        const ajuste = cara.imagen.ajuste || 'cover';
+        if (ajuste === 'cover') {
+            imgElem.style.width = 'auto';
+            imgElem.style.height = 'auto';
+            imgElem.style.minWidth = '100%';
+            imgElem.style.minHeight = '100%';
+            imgElem.style.objectFit = 'cover';
+        } else if (ajuste === 'contain') {
+            imgElem.style.width = '100%';
+            imgElem.style.height = '100%';
+            imgElem.style.minWidth = 'auto';
+            imgElem.style.minHeight = 'auto';
+            imgElem.style.objectFit = 'contain';
+        } else if (ajuste === 'fill') {
+            imgElem.style.width = '100%';
+            imgElem.style.height = '100%';
+            imgElem.style.minWidth = 'auto';
+            imgElem.style.minHeight = 'auto';
+            imgElem.style.objectFit = 'fill';
+        }
 
-        // Aplicar filtros SOLO a la capa de imagen
+        // Aplicar filtros SOLO al elemento de imagen
         if (cara.imagen.filtro && cara.imagen.filtro !== 'none') {
             const mapaFiltros = {
                 'grayscale': 'grayscale(100%)',
@@ -140,10 +162,11 @@ window.ZineR.MotorMaquetacion.prototype.crearElementoCara = function (cara) {
                 'brightness': 'brightness(150%)',
                 'invert': 'invert(100%)'
             };
-            divImagen.style.filter = mapaFiltros[cara.imagen.filtro];
+            imgElem.style.filter = mapaFiltros[cara.imagen.filtro];
         }
 
-        div.appendChild(divImagen);
+        contenedorImagen.appendChild(imgElem);
+        div.appendChild(contenedorImagen);
     }
 
     // Agregar indicador de número de página (solo si mostrarNumero es true)
