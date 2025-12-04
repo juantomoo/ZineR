@@ -16,6 +16,44 @@ window.ZineR.GeneradorPDF = function () {
 };
 
 /**
+ * Pre-procesar imagen aplicando filtros mediante Canvas
+ * Esto garantiza que los filtros se apliquen correctamente en el PDF
+ */
+window.ZineR.GeneradorPDF.prototype.procesarImagenConFiltro = function (dataUrl, filtro, opacidad) {
+    return new Promise((resolve) => {
+        if (!filtro || filtro === 'none') {
+            resolve(dataUrl);
+            return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // Aplicar filtro CSS al canvas
+            const mapaFiltros = {
+                'grayscale': 'grayscale(100%)',
+                'sepia': 'sepia(100%)',
+                'contrast': 'contrast(150%)',
+                'brightness': 'brightness(150%)',
+                'invert': 'invert(100%)'
+            };
+            
+            ctx.filter = mapaFiltros[filtro] || 'none';
+            ctx.globalAlpha = opacidad !== undefined ? opacidad : 1;
+            ctx.drawImage(img, 0, 0);
+
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(dataUrl); // Fallback si falla
+        img.src = dataUrl;
+    });
+};
+
+/**
  * Generar PDF desde datos de maquetación (Estrategia Visual)
  */
 window.ZineR.GeneradorPDF.prototype.generarPDF = async function (maquetacion, opciones, esPreview) {
@@ -70,41 +108,52 @@ window.ZineR.GeneradorPDF.prototype.generarPDF = async function (maquetacion, op
         await document.fonts.ready;
         console.log('[GeneradorPDF] Fuentes cargadas, procediendo con renderizado...');
         
-        // 3. Renderizar contenido usando el Motor de Maquetación existente
-        // Pasamos las opciones explícitamente para asegurar que las fuentes se apliquen
+        // 3. Pre-procesar imágenes con filtros (para compatibilidad con html2canvas)
+        console.log('[GeneradorPDF] Pre-procesando imágenes con filtros...');
+        const carasConImagenesProcesadas = await Promise.all(
+            maquetacion.caras.map(async (cara) => {
+                if (cara.imagen && cara.imagen.dataUrl) {
+                    const imagenProcesada = await this.procesarImagenConFiltro(
+                        cara.imagen.dataUrl,
+                        cara.imagen.filtro,
+                        cara.imagen.opacidad
+                    );
+                    return {
+                        ...cara,
+                        imagen: {
+                            ...cara.imagen,
+                            dataUrl: imagenProcesada,
+                            filtro: 'none' // Ya aplicado en el canvas
+                        }
+                    };
+                }
+                return cara;
+            })
+        );
+
+        // 4. Renderizar contenido usando el Motor de Maquetación
         const opcionesMotor = window.aplicacionZineR ? window.aplicacionZineR.estado.opciones : {};
         const motor = new window.ZineR.MotorMaquetacion(window.aplicacionZineR.gestorImagenes, opcionesMotor);
 
-        // Renderizar caras
-        maquetacion.caras.forEach(cara => {
+        // Renderizar caras con imágenes ya procesadas
+        carasConImagenesProcesadas.forEach(cara => {
             const elemCara = motor.crearElementoCara(cara);
-
-            // Ajustes específicos para impresión de alta calidad
-            elemCara.style.border = 'none'; // Quitamos borde por defecto, usaremos guías
-
-            // Ajustar tamaños de fuente si es necesario?
-            // Al escalar el contenedor, el texto debería escalar proporcionalmente si usamos unidades relativas o px.
-            // Como definimos px en el motor, y escalamos todo el contenedor, debería funcionar.
-            // PERO: El motor usa tamaños fijos (ej. 11px).
-            // Si el contenedor es tamaño real (A4 en pantalla), 11px se verá como 11px.
-            // Al hacer zoom (scale) con html2canvas, se verá nítido.
-
+            elemCara.style.border = 'none';
             contenedorExport.appendChild(elemCara);
         });
 
-        // 4. Agregar guías de corte/doblez (superpuestas)
+        // 5. Agregar guías de corte/doblez (superpuestas)
         if (opciones.mostrarMarcas) {
             this.agregarGuiasVisuales(contenedorExport, maquetacion, anchoPx, altoPx);
         }
 
-        // 5. Capturar con html2canvas
-        // Escala 2 para mejor calidad (aprox 200 DPI), 3 o 4 para 300+ DPI.
-        // Cuidado con el rendimiento y memoria en móviles. 2 es un buen compromiso.
+        // 6. Capturar con html2canvas
+        // Escala 2.5 para buena calidad (aprox 240 DPI)
         const escala = 2.5;
 
         const canvas = await html2canvas(contenedorExport, {
             scale: escala,
-            useCORS: true, // Para imágenes
+            useCORS: true,
             logging: false,
             backgroundColor: '#ffffff'
         });
